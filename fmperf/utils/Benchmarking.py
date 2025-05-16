@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 
 from fmperf import Cluster
 from fmperf.ModelSpecs import ModelSpec
@@ -39,7 +39,10 @@ def _run_benchmark_iteration(cluster, model, workload, workload_spec, number_use
     
     if len(results) > 0:
         df = parse_results(results, print_df=True)
+        # Save CSV to current directory for backward compatibility
         df.to_csv(f"fmperf-{id}-result{rep}.csv")
+        return df.to_dict(orient='records')
+    return []
 
 
 # Run benchmark for models or stack deployment
@@ -52,7 +55,7 @@ def run_benchmark(
     number_users: Optional[Union[int, List[int]]] = 1,
     duration: Optional[str] = "10s",
     id: str = "",
-) -> None:
+) -> Dict:
     """Run benchmarking against either a model deployment or an existing stack deployment.
     
     Args:
@@ -64,6 +67,9 @@ def run_benchmark(
         number_users: Number of concurrent users (ignored for GuideLLMWorkloadSpec)
         duration: Duration of each benchmark run (ignored for GuideLLMWorkloadSpec)
         id: Optional identifier for the benchmark run
+        
+    Returns:
+        Dict containing benchmark results and metadata
     """
     if model_spec is not None and stack_spec is not None:
         raise ValueError("Cannot specify both model_spec and stack_spec. Choose one.")
@@ -76,6 +82,8 @@ def run_benchmark(
     if not isinstance(number_users, list):
         number_users = [number_users]
 
+    all_results = []
+    
     if model_spec is not None:
         # Handle model deployment case
         if not isinstance(model_spec, list):
@@ -88,7 +96,8 @@ def run_benchmark(
                 # Run benchmarks
                 workload = cluster.generate_workload(model, workload_spec, id=id)
                 for rep in range(repetition):
-                    _run_benchmark_iteration(cluster, model, workload, workload_spec, number_users, duration, id, rep)
+                    results = _run_benchmark_iteration(cluster, model, workload, workload_spec, number_users, duration, id, rep)
+                    all_results.extend(results)
             finally:
                 # Always clean up model deployment
                 cluster.delete_model(model)
@@ -98,4 +107,20 @@ def run_benchmark(
         # Run benchmarks directly with stack_spec
         workload = cluster.generate_workload(stack_spec, workload_spec, id=id)
         for rep in range(repetition):
-            _run_benchmark_iteration(cluster, stack_spec, workload, workload_spec, number_users, duration, id, rep)
+            results = _run_benchmark_iteration(cluster, stack_spec, workload, workload_spec, number_users, duration, id, rep)
+            all_results.extend(results)
+    
+    # Return results with metadata
+    return {
+        "run_id": id,
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "config": {
+            "stack_name": stack_spec.name if stack_spec else None,
+            "stack_type": stack_spec.stack_type if stack_spec else None,
+            "workload_file": workload_spec.file if hasattr(workload_spec, 'file') else None,
+            "repetition": repetition,
+            "number_users": number_users,
+            "duration": duration
+        },
+        "results": all_results
+    }

@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fmperf-workload-config
+data:
+  # Small model configuration (Llama-3.2-3B-Instruct)
+  lmbench_llama32b_instruct.yaml: |
+    model_name: "meta-llama/Llama-3.2-3B-Instruct"
+    scenarios: "long-input"
+    qps_values: "0.1 0.25 0.5 1 2 3 4 5"
+    image: "quay.io/chenw615/lmbenchmark:latest"
+    service_account: "default"
+    # New benchmark configuration parameters
+    num_users_warmup: 5
+    num_users: 3
+    num_rounds: 5
+    system_prompt: 256
+    chat_history: 1024
+    answer_len: 32
+    init_user_id: 1
+    test_duration: 300
+
+  # Medium model configuration (7B)
+  lmbench_llama7b_single.yaml: |
+    model_name: "llama-7b"
+    scenarios: "long-input"
+    qps_values: "0.1 0.25 0.5 1 2 3 4 5 7.5 10"
+    image: "quay.io/chenw615/lmbenchmark:latest"
+    service_account: "default"
+    # New benchmark configuration parameters
+    num_users_warmup: 10
+    num_users: 5
+    num_rounds: 10
+    system_prompt: 512
+    chat_history: 2048
+    answer_len: 64
+    init_user_id: 1
+    test_duration: 600
+
+  # Large model configuration (H100)
+  lmbench_llama70b_2replica_H100.yaml: |
+    model_name: "llama-70b"
+    scenarios: "long-input"
+    qps_values: "0.1 0.25 0.5 1 2 3 4 5 7.5 10 15 20"
+    image: "quay.io/chenw615/lmbenchmark:latest"
+    service_account: "default"
+    # New benchmark configuration parameters
+    num_users_warmup: 20
+    num_users: 15
+    num_rounds: 20
+    system_prompt: 1000
+    chat_history: 8000
+    answer_len: 100
+    init_user_id: 1
+    test_duration: 600 

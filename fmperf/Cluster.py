@@ -274,6 +274,7 @@ class Cluster:
             "spec": {
                 "template": {
                     "spec": {
+                        "serviceAccountName": "fmperf-runner",
                         "containers": [
                             {
                                 "name": "fmaas-perf",
@@ -327,9 +328,10 @@ class Cluster:
             volumes.append(
                 {
                     "name": "requests",
-                    "hostPath": {
-                        "path": "/requests",
-                    },
+                    "emptyDir": {
+                        "medium": "Memory",
+                        "sizeLimit": "1Gi"
+                    }
                 }
             )
             volume_mounts.append({"mountPath": "/requests", "name": "requests"})
@@ -386,7 +388,7 @@ class Cluster:
         target = workload.target
 
         # get volumes
-        volumes, volume_mounts = self.__get_volumes_workload(None, workload.spec)
+        volumes, volume_mounts = self.__get_volumes_workload(model, workload.spec)
 
         if isinstance(model, DeployedModel):
             model_name = model.spec.name
@@ -404,17 +406,16 @@ class Cluster:
             # Add OUTPUT_PATH based on the volume mount and job name
             env.append({"name": "OUTPUT_PATH", "value": f"/requests/{job_name}"})
             
-            # Add Hugging Face cache environment variables
-            env.extend([
-                {"name": "TRANSFORMERS_CACHE", "value": "/requests/hf_cache"},
-                {"name": "HF_HOME", "value": "/requests/hf_cache"},
-                {"name": "HF_DATASETS_CACHE", "value": "/requests/hf_cache/datasets"}
-            ])
-            
-            # Add HF_TOKEN from host environment if available
-            hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN") or os.environ.get("hf_token") or os.environ.get("huggingface_token")
-            if hf_token:
-                env.append({"name": "HF_TOKEN", "value": hf_token})
+            # Add HF_TOKEN from secret
+            env.append({
+                "name": "HF_TOKEN",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": "huggingface-secret",
+                        "key": "HF_TOKEN"
+                    }
+                }
+            })
                 
             container_name = "guidellm-benchmark"
             container_args = []  # Use default entrypoint
@@ -423,22 +424,21 @@ class Cluster:
             env = workload.spec.get_env(target, model, workload.file)
             job_name = f"lmbenchmark-evaluate{'-'+id if id else ''}"
             
-            # Add Hugging Face cache environment variables
-            env.extend([
-                {"name": "TRANSFORMERS_CACHE", "value": "/requests/hf_cache"},
-                {"name": "HF_HOME", "value": "/requests/hf_cache"},
-                {"name": "HF_DATASETS_CACHE", "value": "/requests/hf_cache/datasets"}
-            ])
-            
-            # Add HF_TOKEN from host environment if available
-            hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN") or os.environ.get("hf_token") or os.environ.get("huggingface_token")
-            if hf_token:
-                env.append({"name": "HF_TOKEN", "value": hf_token})
+            # Add HF_TOKEN from secret
+            env.append({
+                "name": "HF_TOKEN",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": "huggingface-secret",
+                        "key": "HF_TOKEN"
+                    }
+                }
+            })
                 
             container_name = "lmbenchmark"
             container_args = [
                 "QPS_VALUES=($(env | grep QPS_VALUES_ | sort -V | cut -d= -f2)); "
-                ". ~/.bashrc && . .venv/bin/activate && "
+                ". .venv/bin/activate && "
                 "/app/run_benchmarks.sh \"$MODEL\" \"$BASE_URL\" \"$SAVE_FILE_KEY\" \"$SCENARIOS\" \"${QPS_VALUES[@]}\""
             ]
         else:
@@ -489,12 +489,22 @@ class Cluster:
             "spec": {
                 "template": {
                     "spec": {
-                        "serviceAccountName": workload.spec.service_account or "vllm-router-service-account",
+                        "serviceAccountName": "fmperf-runner",
+                        "securityContext": {
+                            "allowPrivilegeEscalation": False,
+                            "capabilities": {
+                                "drop": ["ALL"]
+                            },
+                            "runAsNonRoot": True,
+                            "seccompProfile": {
+                                "type": "RuntimeDefault"
+                            }
+                        },
                         "initContainers": [
                             {
                                 "name": "init-cache-dirs",
                                 "image": "busybox",
-                                "command": ["sh", "-c", "mkdir -p /requests/hf_cache/datasets && FOLDER_NAME=$(echo $SAVE_FILE_KEY | sed 's|/requests/||' | sed 's|/LMBench||') && mkdir -p /requests/$FOLDER_NAME && chmod -R 777 /requests && ls -la /requests"],
+                                "command": ["sh", "-c", "mkdir -p /requests/hf_cache/datasets && FOLDER_NAME=$(echo $SAVE_FILE_KEY | sed 's|/requests/||' | sed 's|/LMBench||') && mkdir -p /requests/$FOLDER_NAME && ls -la /requests"],
                                 "volumeMounts": [
                                     {
                                         "name": "requests",
