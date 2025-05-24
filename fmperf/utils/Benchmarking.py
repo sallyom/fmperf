@@ -11,7 +11,7 @@ from fmperf.utils import parse_results
 
 
 def _run_benchmark_iteration(
-    cluster, model, workload, workload_spec, number_users, duration, id, rep
+    cluster, model, workload, workload_spec, number_users, duration, id, rep, delete_job=False
 ):
     """Helper function to run a single benchmark iteration."""
     print(f"Performing sweep with {workload.file}")
@@ -24,6 +24,7 @@ def _run_benchmark_iteration(
             num_users=1,  # Dummy value, not used
             duration="1s",  # Dummy value, not used
             id=id,
+            delete_job=delete_job,
         )
         if output is not None:
             results.extend(output)
@@ -35,6 +36,7 @@ def _run_benchmark_iteration(
                 num_users=num_users,
                 duration=duration,
                 id=id,
+                delete_job=delete_job,
             )
             if output is not None:
                 results.extend(output)
@@ -54,6 +56,7 @@ def run_benchmark(
     number_users: Optional[Union[int, List[int]]] = 1,
     duration: Optional[str] = "10s",
     id: str = "",
+    delete_job: bool = False,
 ) -> None:
     """Run benchmarking against either a model deployment or an existing stack deployment.
 
@@ -66,6 +69,7 @@ def run_benchmark(
         number_users: Number of concurrent users (ignored for GuideLLMWorkloadSpec)
         duration: Duration of each benchmark run (ignored for GuideLLMWorkloadSpec)
         id: Optional identifier for the benchmark run
+        delete_job: When True, deletes the job and its logs after evaluation
     """
     if model_spec is not None and stack_spec is not None:
         raise ValueError("Cannot specify both model_spec and stack_spec. Choose one.")
@@ -99,6 +103,7 @@ def run_benchmark(
                         duration,
                         id,
                         rep,
+                        delete_job,
                     )
             finally:
                 # Always clean up model deployment
@@ -118,4 +123,5 @@ def run_benchmark(
                 duration,
                 id,
                 rep,
+                delete_job,
             )

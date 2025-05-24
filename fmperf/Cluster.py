@@ -407,6 +407,7 @@ class Cluster:
         prom_token: str = None,
         metric_list: str = None,
         id: str = "",
+        delete_job: bool = False,  # When True, deletes the job and its logs after evaluation
     ):
         # type of service: vllm/tgis
         target = workload.target
@@ -645,6 +646,7 @@ class Cluster:
         else:
             perf_out, energy_out = None, None
 
-        #deleting.delete_namespaced_job(job_name, self.namespace)
+        if delete_job:
+            deleting.delete_namespaced_job(job_name, self.namespace)
 
         return perf_out, energy_out
