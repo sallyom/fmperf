@@ -469,10 +469,10 @@ class Cluster:
                 ]
             )
             container_name = "lmbenchmark"
-            bashrc_cmd = ". ~/.bashrc && " if os.path.exists(os.path.expanduser("~/.bashrc")) else ""
             container_args = [
                 "QPS_VALUES=($(env | grep QPS_VALUES_ | sort -V | cut -d= -f2)); "
-                f"{bashrc_cmd}. .venv/bin/activate && "
+                "[ -f ~/.bashrc ] && source ~/.bashrc; "
+                "[ -f .venv/bin/activate ] && source .venv/bin/activate; "
                 '/app/run_benchmarks.sh "$MODEL" "$BASE_URL" "$SAVE_FILE_KEY" "$SCENARIOS" "${QPS_VALUES[@]}"'
             ]
         else:
